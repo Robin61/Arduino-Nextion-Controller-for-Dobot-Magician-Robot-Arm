@@ -1,0 +1,227 @@
+Dobot Forum
+
+Arduino Dobot Magician GetPose
+Customer support for Magician
+Arduino Dobot Magician GetPose
+Customer support for Magician
+
+
+Robo
+Jul 6
+Hi,
+
+I have the Dobot connected to an Arduino and I am trying to bet back the position from the Dobot in order to know when a mova has finished. " GetPose" seems to be the command to use for this, but I cannot seem to get it to work witout syntax errors. Can anyone share working Arduino/C++ code for using GetPose?
+
+Would be greatly appreciated!
+
+Thanks
+
+Reply
+
+created
+Jul 6
+last reply
+16h
+6
+replies
+108
+views
+2
+users
+43
+4 MONTHS LATER
+
+Robo
+6d
+Dear customer support,
+
+I am revisiting this project and still I am not able to get the GetPose function to work.
+
+Could you post a simple example in Arduino code containing a move to certain coodinates and then a verification if the coordinates have been reached using the Get Pose command?
+
+Thanks!
+
+Reply
+
+PhotoTech
+3d
+I might be able to help you out. I had to program one of these for work and used the getpose command to make sure it got where it was supposed to. Can you send it other commands successfully? I had to make changes to the library to get it to compile.
+
+A silent video of my prototype setup running. Mine seems a bit more complex than most of the projects I’ve seen on here. So, do have some experience with it.
+Arduino and Dobot Magician
+
+Reply
+
+Robo
+2d
+Really impressive! Your system seems to have a lot of functionality built into it. The joystick is a nice feature as well.
+I am indeed able to send other commands to the dobot. I have built a pick and place demo with a pixy2 camera, for which I also have a video posted on youtube :grinning:
+See link below:
+Dobot Magician with Pixy2 Vision Sensor
+My Arduino code is linked under the video in the description on youtube.
+Since I am not a programmer by profession I have a lot of issues with trying to get working code from the Dobot documentation on their website. The amount of Arduino programs for Dobot on Github is also quite limited, so I can’t copy-paste my way to some of the end goals.
+The things that I can’t get working are:
+
+Getpose function (move arm to position and then check if it has reached the coordinates)
+Speed: my program is fixed to the same speed and no matter what I try I can’t change speeds and acceleration from the Arduino.
+If you can share some code for the above mentioned topics that would be really helpful!
+
+Thanks,
+
+Robin
+
+Reply
+
+PhotoTech
+1d
+Hi Robin,
+
+That’s a very impressive demo. I’m like you, and programming is not my profession. Looking at your code, it looks as though you took their demo code and worked from it. I started that way as well, but that’s where the problem is. Their demo code does not cover all the commands. They have a library you can install in the libraries folder, but it has issues as well. I had to make some changes to get it working. It does have a much more complete coverage of the commands though.
+
+Two possible ways to go forward. Add the commands to their demo files, or switch to using the library. Probably easiest to add the commands because switching to the library may mean having to rewrite some of your sketch. I’ll try to cover both ways, so you can choose. Also, for future projects having the library would give you better control.
+
+I’m trying to work out just what changes need to be made. Not quite there yet, hopefully by tomorrow I can finish. I just wanted to let you know that I could see the problem and what needs to change.
+
+For the speed, try adding this at the beginning of your where you define all your variables. I used the name speed for the variable but you can change it to whatever you like. All the rest has to stay the same.
+
+PTPCommonParams speed;
+
+That’s defined in the command.h file and is the structure you need to pass when setting speed. You should then be able to set the speed by using something like this. I’d keep the values low until you’ve played with it a little bit.
+
+speed.velocityRatio = 20;
+speed.accelerationRatio = 20;
+SetPTPCommonParams(speed, true, &gQueuedCmdIndex);
+ProtocolProcess();
+Hopefully have some more answers for you tomorrow.
+
+Cheers,
+Kevin
+
+
+Reply
+
+Robo
+23h
+The speed and acceleration changes are now working and actually affecting the speed of the arm! Thanks for the time you put in to look into the code and come up with a solution.
+I noticed that I also placed your code in the wrong place initially. Where I currently had the code for updating the velocity and acceleration, the changes had no effect at all (so I thought I was back to square one), however, pasting your code into “void modeArm” which I use for move commands did the trick. Afterwards I moved the code again to new functions which I now use to change the speed while running the program on the Arduino.
+Wow, it seems like a small victory, but I am really happy with the newly added feature to the program. Thanks again.
+If you indeed have some time to find/create some sample code for the GetPose function as well that would be great.
+
+Robin
+
+Reply
+
+PhotoTech
+1 
+16h
+Hi again Robin,
+
+Great to hear that you’ve got the speed control working. This part is a lot more complex, but hopefully explained it well enough. Fingers crossed it works.
+
+Their demo does not include the definition for a lot of things. Worst part, it has no example of receiving any information from the robot. So this is mostly guesswork. I don’t have access to the robot at work at the moment, as it’s at the machine shop getting some final touches. We’re using it to prototype a tool we want, and once it’s finished I probably won’t be doing much with it. It should be back within a week or two, so if this doesn’t work then I will an opportunity to test some of this. I’d make sure to have a backup of your current working files before trying this.
+
+First we need to add this struct into the command.h file, anywhere along with the other typedef structs will work.
+
+typedef struct tagPose {
+    float x;
+    float y;
+    float z;
+    float r;
+    float jointAngle[ROBOT_AXIS];
+} Pose __attribute__ ((aligned(4)));
+We also need to add a declaration for the GetPose command into command.h. This will be after #pragma pack(pop), alongside the other command declarations.
+
+/*********************************************************************************************************
+** Pose
+*********************************************************************************************************/
+extern int GetPose(Pose *pose);
+Finally, we need to add the actual command into command.cpp.
+
+/*********************************************************************************************************
+** Function name:       GetPose
+** Descriptions:        Get Robot Pose
+** Input parameters:    Pose structure
+** Output parameters:   none
+** Returned value:      true
+*********************************************************************************************************/
+int GetPose(Pose *pose)
+{
+    Message tempMessage;
+    memset(&tempMessage, 0, sizeof(Message));
+    tempMessage.id = ProtocolGetPose;
+    tempMessage.rw = false;
+    tempMessage.isQueued = false;
+    tempMessage.paramsLen = 0;
+    memcpy(tempMessage.params, (uint8_t *)ptpCommonParams, tempMessage.paramsLen);
+    MessageWrite(&gSerialProtocolHandler, &tempMessage);
+    memcpy(pose, (void *)gParamsPointer, sizeof(Pose));
+    return true;
+}
+With some luck, that will have added the command and with luck it works. I’m not 100% certain, as their demo files are written differently than the actual library files. Now, to access it you’ll need to add a structure to hold the information. I’m using the variable ‘robotPose’. At the beginning where you declare your variables add this.
+
+Pose robotPose;
+
+Now, in your code where you want to check the pose you add this.
+
+GetPose(&robotPose);
+ProtocolProcess();
+x = robotPose.x;				// x, y, z and r variables will have to be defined somewhere in your program
+y = robotPose.y;				// Again these can be whatever name you choose. The x, y,  z and r after robotPose
+z = robotPose.z;				// have to be that as it's what they're defined as in the struct we're using.
+r = robotPose.r;				// axis0 - axis3 are also whatever variable you choose them to be. I don't bother
+axis0 = robotPose.jointAngle[0];			// getting the jointAngles as I'm mostly interested in the robot being at the coordinates
+axis1 = robotPose.jointAngle[1];			// I specified. You only need to get the ones you need.
+axis2 = robotPose.jointAngle[2];
+axis3 = robotPose.jointAngle[3];
+If you’re checking the coordinates, be sure to give it tolerance for some small amount of error. This is the exact subroutine from my program. I’ve created a struct called coordinates that is just 4 floats (x, y, z, and r). The offset allows me to move only in ‘z’ and still be able to check my position. So, it calls this routine with a variable ‘station’ (of type coordinates) which is the same variable I sent to my move command and an offset. It then checks the position against where I told it to go.
+
+/*********************************************************************************************************
+** Function name:       waitForRobot
+** Descriptions:        Checks pose status of robot and waits for it to get to position called for
+** Input parameters:    Position to wait for and offset
+** Output parameters:   none
+** Returned value:      none
+*********************************************************************************************************/
+void waitForRobot(coordinates station, float offset){
+  float error[4];
+  error[4] = 100;
+  Pose pose;
+  while(error[4]>=.8){
+    GetPose(&pose);
+    error[0] = station.x - pose.x;
+    error[1] = station.y - pose.y;
+    error[2] = station.z - (pose.z - offset);
+    error[3] = station.r - pose.r;
+    error[4] = abs(error[0]) + abs(error[1]) + abs(error[2]) + abs(error[3]);
+  }
+  delay(1000);
+}
+I wish I could guarantee this will work, but having to do all this from just reading code with no tests at the moment. Whether it works or not, I’ll get a copy of my modified version of their library uploaded this weekend and try and point out some of the differences in the way it works. You can see from my subroutine that I don’t have to call ProtocolProcess after I call GetPose. One of the differences, along with a lot more commands that have been written and will work. Also, it cleans up your program space by having your program be the only thing in the sketch and the library routines for the robot in the library folder as they should be.
+
+Kevin
+
+
+Reply
+ Bookmark  Share  Flag  Reply
+You will receive notifications because you created this topic.
+
+Suggested Topics
+Topic	Category	Replies	Views	Activity
+Dobot magician connecting more than one dobots	
+Customer support for Magician
+1	80	Jul 9
+用python对Dobotr进行二次开发	
+Customer support for Magician
+0	138	Aug 3
+Help i have install problems	
+Customer support for Magician
+3	43	10d
+魔术师和arduino mega2560的接口	
+Customer support for Magician
+1	77	Aug 16
+Disassembly / repair service manual for Dobot Magician	
+Customer support for Magician
+1	72	Oct 9
+Want to read more? Browse other topics in 
+Customer support for Magician
+ or view latest topics.
